@@ -10,5 +10,6 @@ setup(
 	packages=['syncrony'],
 	install_requires=[
 		'requests',
+		'eventlet',
 	]
 )

@@ -6,6 +6,8 @@ Syncrony is a set of distributed systems primitives.
 
 It currently uses etcd as a backend, but will eventually support other options, eg. zookeeper.
 
+Uses eventlet.
+
 Installation
 ----
 Check out the repository and install either with pip (this will install with dependencies):
