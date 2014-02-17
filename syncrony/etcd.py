@@ -53,7 +53,9 @@ class Client(object):
 				except requests.ConnectionError:
 					self.log.warning("Connection error when making request", exc_info=True)
 					continue
-				response.raise_for_status()
+				if response.status_code >= 500:
+					self.log.warning("Response returned %d, trying next server", response.status)
+					continue
 				response = response.json()
 				self.log.debug("Got response: %s", response)
 				if 'errorCode' in response:
@@ -127,6 +129,7 @@ class Client(object):
 	def watch_iter(self, path):
 		"""Returns an iterator that yields all events that occur to watched path.
 		Note that if the path does not exist, it will block until it does.
+		# TODO make that last sentence actually true.
 		"""
 		index = False # initial value means no wait on first get
 		while True:
