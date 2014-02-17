@@ -2,8 +2,13 @@ import uuid
 import logging
 
 import eventlet
+import eventlet.event
 
 import etcd
+
+
+class ElectionCancelled(Exception):
+	pass
 
 
 class Election(object):
@@ -29,6 +34,8 @@ class Election(object):
 	# watchdog ensures that if something goes wrong, is_leader is set False after ttl
 	_watchdog = None
 
+	_leader_event = None
+
 	def __init__(self, path, servers=None, ttl=None, interval=None, identifier=None, log=None):
 		"""Create a new Election at the given backend path.
 		All participants must use the same path to participate in the same election.
@@ -52,6 +59,7 @@ class Election(object):
 		if ttl is not None: self.ttl = ttl
 		if interval is not None: self.interval = interval
 		self.identifier = identifier or str(uuid.uuid4())
+
 		self.connect()
 
 	def connect(self):
@@ -83,6 +91,9 @@ class Election(object):
 		self.is_leader = value
 		if value:
 			self._watchdog = eventlet.spawn_after(self.ttl, self._on_watchdog)
+			if self._leader_event is not None:
+				self._leader_event.send()
+				self._leader_event = None
 		else:
 			self.log.warning("We are no longer the leader!")
 
@@ -106,3 +117,23 @@ class Election(object):
 			if not success: continue
 			self._set_leader(True)
 			break
+
+	def wait_for_leader(self):
+		"""Blocks until we are the leader.
+		Raises ElectionCancelled if cancel is called."""
+		if not self.is_leader:
+			if self._leader_event is None:
+				self._leader_event = eventlet.event.Event()
+			self._leader_event.wait()
+
+	def cancel(self):
+		if self._runner is not None:
+			self._runner.kill()
+			self._runner = None
+		if self._watchdog is not None:
+			self._watchdog.cancel()
+			self._watchdog = None
+		if self._leader_event is not None:
+			self._leader_event.send_exception(ElectionCancelled())
+			self._leader = None
+		self.is_leader = False
